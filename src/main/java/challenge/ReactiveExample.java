@@ -3,70 +3,86 @@ package challenge;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
-import java.util.function.Function;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 
 public class ReactiveExample {
 
     public static final int VALOR_PERMITIDO = 15;
-    private  Flux<Estudiante> estudianteList;
+    public static final int NOTA_MINIMA_EXITOSA = 75;
+    private Flux<Estudiante> estudianteFlux;
 
     public ReactiveExample() {
-        //TODO: convertir los estudiantes a un Flux
-
-       /* estudianteList = List.of(
+        this.estudianteFlux = Flux.fromIterable(List.of(
                 new Estudiante("raul", 30, List.of(1, 2, 1, 4, 5)),
                 new Estudiante("andres", 35, List.of(4, 2, 4, 3, 5)),
                 new Estudiante("juan", 75, List.of(3, 2, 4, 5, 5)),
                 new Estudiante("pedro", 80, List.of(5, 5, 4, 5, 5)),
                 new Estudiante("santiago", 40, List.of(4, 5, 4, 5, 5))
-        );
-*/
+        ));
+
     }
 
-    //TODO: suma de puntajes
     public Mono<Integer> sumaDePuntajes() {
-        return null;
+        return this.estudianteFlux
+                .collect(Collectors.summingInt(Estudiante::getPuntaje));
     }
 
-    private Function<Estudiante, Integer> mapeoDeEstudianteAPuntaje() {
-        return Estudiante::getPuntaje;
-    }
-
-    //TODO: mayor puntaje de estudiante
-    public Mono<Estudiante> mayorPuntajeDeEstudiante(int limit) {
-        return null;
+    public Flux<Estudiante> mayorPuntajeDeEstudiante(int limit) {
+        return this.estudianteFlux
+                .sort(Comparator.comparing(Estudiante::getPuntaje).reversed())
+                .take(limit);
 
     }
 
-    //TODO: total de asisntencias de estudiantes con mayor puntaje basado en un  valor
     public Mono<Integer> totalDeAsisntenciasDeEstudiantesConMayorPuntajeDe(int valor) {
-        return null;
+        return this.estudianteFlux
+                .filter(estudiante -> estudiante.getPuntaje() >= valor)
+                .flatMap(estudiante -> Flux.fromIterable(estudiante.getAsistencias()))
+                .reduce(Integer::sum);
     }
 
-    //TODO: el estudiante tiene asistencias correctas
     public Mono<Boolean> elEstudianteTieneAsistenciasCorrectas(Estudiante estudiante) {
-        return null;
+        return Mono.just(estudiante)
+                .filter(this.asistenciasPemitidas())
+                .hasElement();
     }
 
-    //TODO: promedio de puntajes por estudiantes
     public Mono<Double> promedioDePuntajesPorEstudiantes() {
-        return null;
+        return sumaDePuntajes()
+                .zipWith(estudianteFlux.count())
+                .map(objects -> objects.getT1().doubleValue() / objects.getT2().doubleValue());
     }
 
-
-    //TODO: los nombres de estudiante con puntaje mayor a un valor
     public Flux<String> losNombresDeEstudianteConPuntajeMayorA(int valor) {
-        return null;
+        return this.estudianteFlux
+                .filter(estudiante -> estudiante.getPuntaje() > valor)
+                .map(Estudiante::getNombre);
     }
 
-
-
-    //TODO: estudiantes aprovados
-    public Flux<String> estudiantesAprovados(){
-        return null;
+    public Flux<String> estudiantesAprovados() {
+        return this.estudianteFlux
+                .flatMap(this::aprobar)
+                .filter(Estudiante::isAprobado)
+                .map(Estudiante::getNombre);
     }
 
+    private Mono<Estudiante> aprobar(Estudiante estudiante) {
+        return Mono.just(estudiante)
+                .filter(e -> e.getPuntaje() >= NOTA_MINIMA_EXITOSA)
+                .map(e -> {
+                    e.setAprobado(true);
+                    return e;
+                })
+                .defaultIfEmpty(estudiante);
+    }
 
+    private Predicate<Estudiante> asistenciasPemitidas() {
+        return estudiante -> Flux.fromIterable(estudiante.getAsistencias())
+                .reduce(Integer::sum)
+                .block() >= VALOR_PERMITIDO;
+    }
 }
